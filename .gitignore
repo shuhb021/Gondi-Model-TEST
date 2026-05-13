@@ -4,7 +4,6 @@ __pycache__/
 *.pth
 
 # Data and Models
-Datasets/*.csv
 Model_Weights/
 t5_gondi_model/
 gondi_model/
