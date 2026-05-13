@@ -2,3 +2,15 @@ venv/
 __pycache__/
 *.pt
 *.pth
+
+# Data and Models
+Datasets/*.csv
+Model_Weights/
+t5_gondi_model/
+gondi_model/
+
+# Logs and Results
+*.log
+Evaluation_Results/
+t5_gondi_results/
+results Byt5/

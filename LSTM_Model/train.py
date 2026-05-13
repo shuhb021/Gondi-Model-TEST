@@ -11,7 +11,8 @@ import os
 import torch
 import torch.nn as nn
 import pandas as pd
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import DataLoader, random_split
+from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 
 # ── Local imports ────────────────────────────────────────────────────────────
 from gondi_bpe_tokenizer import GondiTokenizer
@@ -25,14 +26,15 @@ EPOCHS           = 30
 EMBED_DIM        = 256
 HIDDEN_DIM       = 512
 NUM_LAYERS       = 2
-DROPOUT          = 0.5
+DROPOUT          = 0.6
 TEACHER_FORCING  = 0.5
 LR               = 1e-3
 
 # Paths
-CSV_PATH         = "gondi_training_dataset.csv"
-TOKENIZER_PATH   = "gondi_bpe_model.json"
-CHECKPOINT_PATH  = "best_gondi_model.pt"
+BASE_DIR         = os.path.dirname(os.path.abspath(__file__))
+CSV_PATH         = os.path.join(BASE_DIR, "..", "Datasets", "gondi_training_60k.csv")
+TOKENIZER_PATH   = os.path.join(BASE_DIR, "gondi_bpe_model.json")
+CHECKPOINT_PATH  = os.path.join(BASE_DIR, "best_gondi_model_eng.pt")
 
 # Reproducibility
 RANDOM_SEED      = 42
@@ -62,7 +64,7 @@ print(f"  PAD={PAD_IDX}  SOS={SOS_IDX}  EOS={EOS_IDX}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  DATASET
+#  DATASET & BLEU UTILS
 # ─────────────────────────────────────────────────────────────────────────────
 class GondiDataset(Dataset):
     """
@@ -76,7 +78,7 @@ class GondiDataset(Dataset):
     """
 
     def __init__(self, csv_path: str, tokenizer: GondiTokenizer,
-                 src_col: str = "Gondi", tgt_col: str = "Hindi"):
+                 src_col: str = "Gondi", tgt_col: str = "English"):
         super().__init__()
         df = pd.read_csv(csv_path, encoding="utf-8-sig")
 
@@ -184,8 +186,8 @@ print(f"  Decoder vocab      : {VOCAB_SIZE}")
 # ─────────────────────────────────────────────────────────────────────────────
 #  OPTIMIZER, LOSS, SCHEDULER
 # ─────────────────────────────────────────────────────────────────────────────
-optimizer = torch.optim.Adam(model.parameters(), lr=LR)
-criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX)
+optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=1e-5)
+criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX, label_smoothing=0.1)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode="min", patience=2, factor=0.5
 )
@@ -216,12 +218,51 @@ for epoch in range(1, EPOCHS + 1):
         pad_idx=PAD_IDX,
     )
 
+    # ── Calculate BLEU Score on Validation Subset ──
+    model.eval()
+    bleu_score = 0.0
+    references = []
+    hypotheses = []
+    
+    with torch.no_grad():
+        # Evaluate on a small batch for speed
+        for src, trg in val_loader:
+            src, trg = src.to(device), trg.to(device)
+            # trg is [batch, len]
+            
+            # Use greedy decoding for the batch (approximated by teacher_forcing=0)
+            output = model(src, trg, teacher_forcing_ratio=0.0, src_lengths=None)
+            # output: [batch, trg_len, vocab_size]
+            
+            preds = output.argmax(dim=-1) # [batch, trg_len]
+            
+            for i in range(preds.shape[0]):
+                # Convert target IDs to tokens, ignore PAD, SOS, EOS
+                ref_tokens = [tokenizer.id_to_token.get(idx.item(), "") for idx in trg[i] 
+                              if idx.item() not in (PAD_IDX, SOS_IDX, EOS_IDX)]
+                references.append([ref_tokens])
+                
+                # Convert pred IDs to tokens, stop at EOS
+                pred_ids = preds[i].tolist()
+                if EOS_IDX in pred_ids:
+                    pred_ids = pred_ids[:pred_ids.index(EOS_IDX)]
+                pred_tokens = [tokenizer.id_to_token.get(idx, "") for idx in pred_ids 
+                               if idx not in (PAD_IDX, SOS_IDX)]
+                hypotheses.append(pred_tokens)
+            break # Just one batch to save time per epoch
+
+    try:
+        smoothie = SmoothingFunction().method4
+        bleu_score = corpus_bleu(references, hypotheses, smoothing_function=smoothie) * 100
+    except:
+        bleu_score = 0.0
+
     # Step the scheduler
     current_lr = optimizer.param_groups[0]["lr"]
     scheduler.step(val_loss)
 
     # Logging
-    print(f"  {epoch:>5} | {train_loss:>11.4f} | {val_loss:>11.4f} | {current_lr:>10.6f}")
+    print(f"  {epoch:>5} | {train_loss:>11.4f} | {val_loss:>11.4f} | {current_lr:>10.6f} | BLEU: {bleu_score:>5.2f}")
 
     # Checkpointing — save best model
     if val_loss < best_val_loss:
