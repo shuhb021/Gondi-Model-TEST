@@ -89,3 +89,4 @@ while True:
         break
     result = translate(user_input)
     print(f"  ↳ {target_lang}: {result}\n")
+

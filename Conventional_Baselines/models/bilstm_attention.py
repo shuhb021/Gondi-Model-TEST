@@ -240,3 +240,4 @@ def build_bilstm_model(vocab_size: int, device: torch.device,
     decoder = BiLSTMDecoder(vocab_size, embed_dim, hidden_dim, num_layers, dropout, pad_idx)
     model = BiLSTMSeq2Seq(encoder, decoder, device).to(device)
     return model
+

@@ -27,20 +27,20 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 
-from gondi_bpe_tokenizer import GondiTokenizer
-from dataset import GondiTranslationDataset, pad_collate_fn
+from dataset import GondiTranslationDataset, pad_collate_fn, load_unified_tokenizer
 from models import (
     build_bilstm_model,
     build_gru_model,
     build_transformer_small,
     build_transformer_base,
+    build_vanilla_transformer,
 )
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train conventional seq2seq baselines on Gondi corpus.")
     parser.add_argument("--model", type=str, required=True,
-                        choices=["bilstm", "gru", "transformer_small", "transformer_base"],
+                        choices=["bilstm", "gru", "transformer_small", "transformer_base", "vanilla_transformer"],
                         help="Baseline architecture to train.")
     parser.add_argument("--src_lang", type=str, default="Gondi", help="Source column name.")
     parser.add_argument("--tgt_lang", type=str, default="Hindi", choices=["Hindi", "English"],
@@ -220,12 +220,12 @@ def main():
     print(f"  🖥️  Device: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})")
     print("=" * 75)
 
-    # 1. Load Tokenizer
-    tokenizer = GondiTokenizer.load(tokenizer_path)
+    # 1. Load Tokenizer (supports both native BPE model and HuggingFace tokenizer.json)
+    tokenizer = load_unified_tokenizer(tokenizer_path)
     vocab_size = tokenizer.vocab_size()
-    pad_idx = tokenizer.token_to_id.get(GondiTokenizer.PAD_TOKEN, 0)
-    sos_idx = tokenizer.token_to_id.get(GondiTokenizer.START_TOKEN, 2)
-    eos_idx = tokenizer.token_to_id.get(GondiTokenizer.END_TOKEN, 3)
+    pad_idx = tokenizer.pad_idx
+    sos_idx = tokenizer.sos_idx
+    eos_idx = tokenizer.eos_idx
 
     print(f"  ✓ Tokenizer: {vocab_size} tokens | PAD={pad_idx}, SOS={sos_idx}, EOS={eos_idx}")
 
@@ -270,9 +270,9 @@ def main():
     elif args.model == "transformer_small":
         lr = args.lr or 5e-4
         model = build_transformer_small(vocab_size=vocab_size, device=device, pad_idx=pad_idx)
-    elif args.model == "transformer_base":
+    elif args.model in ("transformer_base", "vanilla_transformer"):
         lr = args.lr or 3e-4
-        model = build_transformer_base(vocab_size=vocab_size, device=device, pad_idx=pad_idx)
+        model = build_vanilla_transformer(vocab_size=vocab_size, device=device, pad_idx=pad_idx)
     else:
         raise ValueError(f"Unknown model architecture: {args.model}")
 
@@ -372,3 +372,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

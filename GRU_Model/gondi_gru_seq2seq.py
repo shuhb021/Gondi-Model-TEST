@@ -190,3 +190,4 @@ if __name__ == "__main__":
     model = build_model(5000, 5000, dev)
     print("GRU+Attention Model initialized successfully!")
     print(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
+

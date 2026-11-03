@@ -185,3 +185,4 @@ if __name__ == "__main__":
     m_base = build_model(5000, 5000, dev, "base")
     print(f"Transformer-Small params: {sum(p.numel() for p in m_small.parameters() if p.requires_grad):,}")
     print(f"Transformer-Base  params: {sum(p.numel() for p in m_base.parameters() if p.requires_grad):,}")
+

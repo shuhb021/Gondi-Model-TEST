@@ -236,3 +236,15 @@ def build_transformer_base(vocab_size: int, device: torch.device,
         pad_idx=pad_idx,
         device=device
     ).to(device)
+
+
+def build_vanilla_transformer(vocab_size: int, device: torch.device,
+                              pad_idx: int = 0, model_size: str = "base") -> TransformerSeq2Seq:
+    """
+    Vanilla Transformer Baseline (Vaswani et al., 2017) trained from scratch.
+    Satisfies Requirement P2: 'Try vanilla transformer with same data and BPE tokenizer'.
+    """
+    if model_size == "small":
+        return build_transformer_small(vocab_size, device, pad_idx)
+    return build_transformer_base(vocab_size, device, pad_idx)
+
