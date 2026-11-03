@@ -13,3 +13,6 @@ gondi_model/
 Evaluation_Results/
 t5_gondi_results/
 results Byt5/
+checkpoints/
+history_*.json
+eval_*.json

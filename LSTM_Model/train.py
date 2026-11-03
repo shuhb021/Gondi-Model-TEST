@@ -11,7 +11,7 @@ import os
 import torch
 import torch.nn as nn
 import pandas as pd
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, Dataset
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 
 # ── Local imports ────────────────────────────────────────────────────────────
